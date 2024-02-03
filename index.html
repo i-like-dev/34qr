@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code Scanner with Flashlight</title>
+<style>
+  body, html {
+    height: 100%;
+    margin: 0;
+    font-family: Arial, sans-serif;
+  }
+
+  .scanner-container {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .scan-border {
+    padding: 15px;
+    border: 8px solid #4285F4;
+    border-radius: 10px;
+  }
+
+  .instructions {
+    margin-top: 20px;
+    color: #333;
+  }
+
+  .flashlight {
+    margin-top: 20px;
+    cursor: pointer;
+    padding: 10px 20px;
+    background-color: #4285F4;
+    color: #fff;
+    border-radius: 4px;
+    border: none;
+    font-size: 18px;
+  }
+
+  footer {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+    color: #999;
+  }
+</style>
+</head>
+<body>
+
+<div class="scanner-container">
+  <div class="scan-border">
+    <video id="video" width="100%" style="border-radius: 8px;"></video>
+  </div>
+  <div class="instructions">對準QR code進行掃描</div>
+  <button id="btn-flashlight" class="flashlight">Toggle Flashlight</button>
+</div>
+
+<footer>
+  <p>Google 掃描提供</p>
+</footer>
+
+<script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
+<script>
+  const videoElement = document.getElementById('video');
+  const flashlightButton = document.getElementById('btn-flashlight');
+  let stream = null;
+  let track = null;
+  let isFlashlightOn = false;
+
+  // Access the device camera and stream to video element
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    .then(function(mediaStream) {
+      stream = mediaStream;
+      track = stream.getVideoTracks()[0];
+      videoElement.srcObject = stream;
+      videoElement.play();
+      flashlightButton.disabled = !track.getCapabilities().torch;
+    })
+    .catch(function(error) {
+      console.error('Camera access denied:', error);
+    });
+
+  // Function to toggle flashlight on/off
+  flashlightButton.addEventListener('click', function() {
+    if (track) {
+      isFlashlightOn = !isFlashlightOn;
+      track.applyConstraints({
+        advanced: [{ torch: isFlashlightOn }]
+      });
+    }
+  });
+
+  // Use jsQR to decode the video stream
+  function tick() {
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+      let canvas = document.createElement('canvas');
+      canvas.width = videoElement.videoWidth;
+      canvas.height = videoElement.videoHeight;
+      let ctx = canvas.getContext('2d');
+      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+      let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      let code = jsQR(imageData.data, imageData.width, imageData.height);
+      if (code) {
+        console.log('Found QR code', code.data);
+        // Process the QR code result
+        // For example: alert(code.data);
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  // Start the decoding process
+  videoElement.addEventListener('play', function() {
+    tick();
+  });
+
+</script>
+
+</body>
+</html>
