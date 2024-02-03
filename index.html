@@ -1,28 +1,28 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>QR Code Scanner with Flashlight</title>
+<title>QR碼掃描器附帶手電筒功能</title>
 <style>
   body, html {
     height: 100%;
     margin: 0;
     font-family: Arial, sans-serif;
+    background: #f8f9fa;
   }
 
   .scanner-container {
     position: relative;
     width: 100%;
-    max-width: 400px;
-    margin: auto;
+    max-width: 600px;
+    margin: 50px auto;
     text-align: center;
-    padding: 20px;
   }
 
   .scan-border {
-    padding: 15px;
-    border: 8px solid #4285F4;
+    padding: 10px;
+    border: 5px solid #4285F4;
     border-radius: 10px;
   }
 
@@ -43,10 +43,7 @@
   }
 
   footer {
-    position: absolute;
-    bottom: 10px;
-    width: 100%;
-    text-align: center;
+    margin-top: 20px;
     color: #999;
   }
 </style>
@@ -55,70 +52,68 @@
 
 <div class="scanner-container">
   <div class="scan-border">
-    <video id="video" width="100%" style="border-radius: 8px;"></video>
+    <video id="video" width="100%" height="auto" style="border-radius: 8px;"></video>
   </div>
-  <div class="instructions">對準QR code進行掃描</div>
-  <button id="btn-flashlight" class="flashlight">Toggle Flashlight</button>
+  <div class="instructions">將相機對準QR碼</div>
+  <button id="btn-flashlight" class="flashlight">開關手電筒</button>
 </div>
 
 <footer>
-  <p>Google 掃描提供</p>
+  <p>掃描器由您的公司名稱提供</p>
 </footer>
 
 <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script>
 <script>
   const videoElement = document.getElementById('video');
-  const flashlightButton = document.getElementById('btn-flashlight');
-  let stream = null;
-  let track = null;
-  let isFlashlightOn = false;
+  const canvasElement = document.createElement('canvas');
+  const canvas = canvasElement.getContext('2d');
+  let stream;
 
-  // Access the device camera and stream to video element
+  // 啟用環境模式嘗試使用後置攝像頭
   navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
     .then(function(mediaStream) {
       stream = mediaStream;
-      track = stream.getVideoTracks()[0];
       videoElement.srcObject = stream;
+      videoElement.setAttribute('playsinline', true); // 防止在iOS Safari中全屏
       videoElement.play();
-      flashlightButton.disabled = !track.getCapabilities().torch;
-    })
-    .catch(function(error) {
-      console.error('Camera access denied:', error);
+      requestAnimationFrame(tick);
     });
 
-  // Function to toggle flashlight on/off
-  flashlightButton.addEventListener('click', function() {
-    if (track) {
-      isFlashlightOn = !isFlashlightOn;
-      track.applyConstraints({
-        advanced: [{ torch: isFlashlightOn }]
-      });
-    }
+  // 控制手電筒的函數
+  document.getElementById('btn-flashlight').addEventListener('click', function() {
+    let track = stream.getVideoTracks()[0];
+    track.applyConstraints({
+      advanced: [{ torch: !track.getSettings().torch }]
+    });
   });
 
-  // Use jsQR to decode the video stream
   function tick() {
     if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
-      let canvas = document.createElement('canvas');
-      canvas.width = videoElement.videoWidth;
-      canvas.height = videoElement.videoHeight;
-      let ctx = canvas.getContext('2d');
-      ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-      let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      let code = jsQR(imageData.data, imageData.width, imageData.height);
+      canvasElement.height = videoElement.videoHeight;
+      canvasElement.width = videoElement.videoWidth;
+      canvas.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+
+      var imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+      var code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert',
+      });
+
       if (code) {
-        console.log('Found QR code', code.data);
-        // Process the QR code result
-        // For example: alert(code.data);
+        videoElement.pause();
+        stream.getVideoTracks().forEach(function(track) {
+          track.stop();
+        });
+
+        if (code.data.startsWith('http')) {
+          window.open(code.data, '_blank');
+        } else {
+          alert('掃描結果: ' + code.data);
+        }
+      } else {
+        requestAnimationFrame(tick);
       }
     }
-    requestAnimationFrame(tick);
   }
-
-  // Start the decoding process
-  videoElement.addEventListener('play', function() {
-    tick();
-  });
 
 </script>
 
